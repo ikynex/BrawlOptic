@@ -18,7 +18,7 @@
             <h1 class="text-4xl md:text-5xl font-brawl tracking-wider text-yellow-400 drop-shadow-[0_4px_0_rgba(0,0,0,1)] uppercase">
                 BrawlOptic
             </h1>
-            <p class="text-slate-400 text-sm mt-1">Brawl Stars İstatistik ve Hesap İlerleme Paneli</p>
+            <p class="text-slate-400 text-sm mt-1">Canlı Oyuncu İstatistiği ve Hesap İlerleme Paneli</p>
         </header>
 
         <!-- Arama Alanı -->
@@ -35,7 +35,7 @@
         </div>
 
         <div id="loading" class="hidden text-center py-12 text-slate-400 font-semibold">
-            Oyuncu verileri taranıyor...
+            Oyuncu verileri taranıyor, lütfen bekleyin...
         </div>
 
         <div id="errorMessage" class="hidden max-w-lg mx-auto p-4 mb-6 bg-red-950/80 border border-red-800 rounded-xl text-red-200 text-center text-sm font-semibold">
@@ -130,7 +130,7 @@
             const rawTag = document.getElementById('tagInput').value.trim();
             if (!rawTag) return;
 
-            // Etiketteki # işaretini, boşlukları temizle ve O harflerini 0 rakamına çevir
+            // Etiketi temizleme: # ve boşlukları at, O harfini 0 rakamı yap
             let cleanTag = rawTag.replace(/#/g, '').replace(/\s+/g, '').toUpperCase();
             cleanTag = cleanTag.replace(/O/g, '0');
 
@@ -143,32 +143,37 @@
             content.classList.add('hidden');
 
             try {
+                // Canlı açık API sunucusundan veri çekimi
                 let data = null;
+                const targetTag = `%23${cleanTag}`;
 
-                // 1. Yol: BrawlAPI oyuncu sorgusu
-                try {
-                    const res = await fetch(`https://api.brawlapi.com/v1/players/${cleanTag}`);
-                    if (res.ok) {
-                        data = await res.json();
-                    }
-                } catch (e) {
-                    // İlk istekte hata olursa yedeğe geçer
-                }
+                // Birincil ve ikincil açık CORS servisleri
+                const sources = [
+                    `https://api.brawlstars.com/v1/players/${targetTag}`,
+                    `https://brawlstars.in/api/v1/players/${targetTag}`
+                ];
 
-                // 2. Yol: Alternatif uç nokta (etiket formatı # ile)
-                if (!data) {
+                for (const src of sources) {
                     try {
-                        const res = await fetch(`https://api.brawlapi.com/v1/player/%23${cleanTag}`);
+                        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(src)}`;
+                        const res = await fetch(proxyUrl);
                         if (res.ok) {
-                            data = await res.json();
+                            const wrapper = await res.json();
+                            if (wrapper.contents) {
+                                const parsed = JSON.parse(wrapper.contents);
+                                if (parsed && (parsed.tag || parsed.name)) {
+                                    data = parsed;
+                                    break;
+                                }
+                            }
                         }
                     } catch (e) {
-                        // Yedek proxy denemesi
+                        // Bir sonraki servise geçer
                     }
                 }
 
                 if (!data) {
-                    throw new Error(`Oyuncu bulunamadı (#${cleanTag}). Etiketi kontrol edin.`);
+                    throw new Error(`Oyuncu profili bulunamadı (#${cleanTag}). Etiketi kontrol edip tekrar deneyin.`);
                 }
 
                 renderAll(data);
