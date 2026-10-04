@@ -119,7 +119,6 @@
     </div>
 
     <script>
-        // Seviye 1'den 11'e yükseltme maliyetleri
         const UPGRADE_COSTS = {
             coins: [0, 20, 35, 75, 140, 290, 480, 800, 1250, 1875, 2800],
             powerPoints: [0, 20, 30, 50, 80, 130, 210, 340, 550, 890, 1440]
@@ -131,7 +130,10 @@
             const rawTag = document.getElementById('tagInput').value.trim();
             if (!rawTag) return;
 
-            const cleanTag = rawTag.replace('#', '').toUpperCase();
+            // Etiketteki # işaretini, boşlukları temizle ve O harflerini 0 rakamına çevir
+            let cleanTag = rawTag.replace(/#/g, '').replace(/\s+/g, '').toUpperCase();
+            cleanTag = cleanTag.replace(/O/g, '0');
+
             const loading = document.getElementById('loading');
             const errorBox = document.getElementById('errorMessage');
             const content = document.getElementById('content');
@@ -141,11 +143,34 @@
             content.classList.add('hidden');
 
             try {
-                // brawlapi.com üzerinden doğrudan CORS'suz ve anahtarsız çağrı
-                const res = await fetch(`https://api.brawlapi.com/v1/player/%23${cleanTag}`);
-                if (!res.ok) throw new Error('Oyuncu bulunamadı. Etiketi kontrol edin.');
-                
-                const data = await res.json();
+                let data = null;
+
+                // 1. Yol: BrawlAPI oyuncu sorgusu
+                try {
+                    const res = await fetch(`https://api.brawlapi.com/v1/players/${cleanTag}`);
+                    if (res.ok) {
+                        data = await res.json();
+                    }
+                } catch (e) {
+                    // İlk istekte hata olursa yedeğe geçer
+                }
+
+                // 2. Yol: Alternatif uç nokta (etiket formatı # ile)
+                if (!data) {
+                    try {
+                        const res = await fetch(`https://api.brawlapi.com/v1/player/%23${cleanTag}`);
+                        if (res.ok) {
+                            data = await res.json();
+                        }
+                    } catch (e) {
+                        // Yedek proxy denemesi
+                    }
+                }
+
+                if (!data) {
+                    throw new Error(`Oyuncu bulunamadı (#${cleanTag}). Etiketi kontrol edin.`);
+                }
+
                 renderAll(data);
                 content.classList.remove('hidden');
             } catch (err) {
